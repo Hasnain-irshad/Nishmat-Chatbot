@@ -1,0 +1,16 @@
+{
+  "verdict": "PASS",
+  "summary": "Mock quality check — no real evaluation was performed.",
+  "checks": {
+    "meaning_preserved": true,
+    "template_followed": true,
+    "sections_present": true,
+    "tone_appropriate": true,
+    "hebrew_intact": true,
+    "no_fabricated_quotes": true,
+    "no_fabricated_sources": true,
+    "no_unrelated_material": true,
+    "coherent": true
+  },
+  "issues": []
+}

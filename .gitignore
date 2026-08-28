@@ -1,0 +1,59 @@
+# ---- Client IP: never commit source lesson material ----
+Data/
+Audios/
+*.docx
+!docs/**/*.docx
+
+# ---- Secrets ----
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+
+# ---- Node / Next.js ----
+node_modules/
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+.vercel/
+
+# ---- Editors / OS ----
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+~$*
+
+# ---- Local scratch ----
+tmp/
+scratch/
+*.log
+
+# ---- Client IP: material that belongs to Rivkah, not to this repo ----
+# The repo is public. Her sample lesson, her handbook and her branding are
+# hers to publish, not ours. The app's own served assets under
+# frontend/public/ are kept, because the live site already serves them.
+sample output.txt
+Logo.jpeg
+Landing page sample gui.jpeg
+docs/*.docx
+
+# A scan of a published siddur edition. The prayer itself is ancient and in the
+# public domain — the plain-text file beside this one carries it — but a
+# photograph of somebody's printed edition is a different thing, and a public
+# repo is the wrong place to make that call.
+Reference/**/*.png

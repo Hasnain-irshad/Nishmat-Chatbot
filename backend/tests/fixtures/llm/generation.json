@@ -1,0 +1,94 @@
+{
+  "sections": [
+    {
+      "key": "series_title",
+      "title": null,
+      "body": "Nishmat: A Journey of Praise",
+      "dir": "ltr"
+    },
+    {
+      "key": "lesson_number",
+      "title": null,
+      "body": "Lesson #131",
+      "dir": "ltr"
+    },
+    {
+      "key": "hebrew_phrase",
+      "title": null,
+      "body": "נִשְׁמַת כָּל חַי",
+      "dir": "rtl"
+    },
+    {
+      "key": "transliteration",
+      "title": null,
+      "body": "Nishmat kol chai",
+      "dir": "ltr"
+    },
+    {
+      "key": "translation",
+      "title": null,
+      "body": "“The soul of every living being”",
+      "dir": "ltr"
+    },
+    {
+      "key": "greeting",
+      "title": null,
+      "body": "Shavua tov, neshamot yekarot.\n\nI hope you're all doing well.",
+      "dir": "ltr"
+    },
+    {
+      "key": "introduction",
+      "title": null,
+      "body": "[mock] This placeholder stands in for the real lesson.\n\nSet LLM_MODE=live to generate properly.",
+      "dir": "ltr"
+    },
+    {
+      "key": "central_concept",
+      "title": null,
+      "body": "Nishmat kol chai.\n\nThe soul of every living being.",
+      "dir": "ltr"
+    },
+    {
+      "key": "personal_hook",
+      "title": null,
+      "body": "[mock] The teacher's own wondering would sit here.",
+      "dir": "ltr"
+    },
+    {
+      "key": "story_example",
+      "title": null,
+      "body": "[mock] The story from the source would be told here.",
+      "dir": "ltr"
+    },
+    {
+      "key": "spiritual_connection",
+      "title": null,
+      "body": "[mock] The turn toward the spiritual point.",
+      "dir": "ltr"
+    },
+    {
+      "key": "reflection",
+      "title": null,
+      "body": "[mock] A deeper reflection.",
+      "dir": "ltr"
+    },
+    {
+      "key": "practical_takeaway",
+      "title": null,
+      "body": "So this week, I'd like to invite you to try something.",
+      "dir": "ltr"
+    },
+    {
+      "key": "closing_blessing",
+      "title": null,
+      "body": "May Hashem help each of us feel His closeness.",
+      "dir": "ltr"
+    },
+    {
+      "key": "signoff",
+      "title": null,
+      "body": "Shavua tov.\n\nMake it a wonderful week.",
+      "dir": "ltr"
+    }
+  ]
+}

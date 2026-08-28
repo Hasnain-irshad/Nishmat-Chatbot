@@ -1,0 +1,24 @@
+# Nishmat AI — backend
+# Pinned to minor versions: reproducible without freezing out patch fixes.
+
+fastapi==0.115.*
+uvicorn[standard]==0.34.*
+pydantic==2.10.*
+pydantic-settings==2.7.*
+
+# HTTP client for Supabase REST + OpenAI
+httpx==0.28.*
+
+# JWT verification. [crypto] pulls in `cryptography`, which is what actually
+# implements ES256 — without it PyJWT can only do HMAC.
+PyJWT[crypto]==2.10.*
+
+# Multipart form parsing for file uploads
+python-multipart==0.0.20
+
+# Document extraction
+pymupdf==1.25.*          # PDF — text, layout, page rendering for the vision fallback
+python-docx==1.1.*       # DOCX fallback (the stdlib parser is primary)
+
+# Structured logging
+structlog==24.4.*
