@@ -162,6 +162,113 @@ async def resolve_lesson_number(number: int) -> tuple[str | None, bool]:
     return (row["id"] if published else None), True
 
 
+# "the complete lesson", "the full transcript", "exactly as stored", "verbatim".
+#
+# The distinction this draws is between "tell me about lesson 109" — a question,
+# which a model should answer — and "give me lesson 109 as it is written", which
+# is a RETRIEVAL and must never touch a model at all.
+# "the complete transcript", "the full text", "the entire lesson".
+#
+# The adjective has to MODIFY the thing being asked for. Testing the two halves
+# independently does not work: every one of these questions carries the word
+# "lesson" already, because it names a lesson number — so "give me a complete
+# picture of what lesson 4 teaches" satisfied both halves and would have had a
+# thoughtful answer replaced by 700 words of raw text.
+#
+# One optional filler word between them covers the natural phrasings
+# ("complete ORIGINAL transcript", "full STORED text") without opening the gap
+# wide enough for "complete picture of what lesson" to slip through.
+VERBATIM_PHRASE = re.compile(
+    r"\b(?:complete|full|whole|entire|original|unedited|unabridged|raw)\s+"
+    r"(?:\w+\s+)?"
+    r"(?:lesson|transcript|text|content|shiur|write[- ]?up|version|thing)\b",
+    re.IGNORECASE,
+)
+
+# Markers that need no object because they cannot mean anything else.
+VERBATIM_MARKER = re.compile(
+    r"\b(?:"
+    r"verbatim|word[- ]for[- ]word|in\s+full|as[- ]is|"
+    r"exactly\s+as\s+(?:stored|written|saved|recorded|it\s+is)|"
+    r"as\s+(?:stored|originally\s+written)"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def verbatim_request(question: str) -> bool:
+    """
+    Is this a request for the stored lesson itself, rather than a question?
+
+    "What is lesson 109 about" wants an answer. "Return lesson 109 exactly as
+    stored" wants the bytes. Only the second bypasses the model.
+    """
+    text = question or ""
+    return bool(VERBATIM_PHRASE.search(text) or VERBATIM_MARKER.search(text))
+
+
+async def load_full_lesson(number: int) -> dict | None:
+    """
+    The complete stored lesson, read straight from its published version.
+
+    Deliberately does NOT go through the vector index, and the caller must not
+    put the result through a model.
+
+    Three reasons this cannot be a retrieval-plus-generation path:
+
+      * chunks overlap by design (`chunking_service.OVERLAP_SENTENCES`), so
+        reassembling them produces duplicated sentences, not the original;
+      * `SKIP_KEYS` omits some sections from the index entirely, so the chunks
+        are not the whole lesson even before overlap;
+      * a language model asked to reproduce 700 words exactly will paraphrase,
+        and there is no way to tell from the output that it did.
+
+    The teacher is asking for her own writing back. Anything other than the
+    stored bytes is the wrong answer.
+    """
+    db = supabase.service()
+
+    lesson = await db.select(
+        "lessons",
+        columns=(
+            "id, lesson_number, title, status, published_version_id, "
+            "hebrew_phrase, transliteration, translation, published_at"
+        ),
+        filters={"lesson_number": f"eq.{number}", "deleted_at": "is.null"},
+        single=True,
+    )
+    if not lesson or lesson.get("status") != "published":
+        return None
+
+    version_id = lesson.get("published_version_id")
+    if not version_id:
+        return None
+
+    version = await db.select(
+        "lesson_versions",
+        columns="id, version_number, content, content_text, word_count",
+        filters={"id": f"eq.{version_id}"},
+        single=True,
+    )
+    if not version or not (version.get("content_text") or "").strip():
+        return None
+
+    return {
+        "lesson_id": lesson["id"],
+        "lesson_number": lesson["lesson_number"],
+        "title": lesson.get("title") or "Untitled lesson",
+        "hebrew_phrase": lesson.get("hebrew_phrase"),
+        "transliteration": lesson.get("transliteration"),
+        "version_id": version["id"],
+        "version_number": version.get("version_number"),
+        "word_count": version.get("word_count"),
+        # Byte-for-byte as stored. Never reflowed, never trimmed: in this corpus
+        # the line breaks are the punctuation.
+        "content_text": version["content_text"],
+        "sections": (version.get("content") or {}).get("sections") or [],
+    }
+
+
 async def search(
     question: str,
     *,

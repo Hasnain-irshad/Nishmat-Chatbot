@@ -259,6 +259,21 @@ function Bubble({ message }: { message: ChatMessage }) {
  * A bare Hebrew word inside an English sentence drags the surrounding
  * punctuation to the wrong side unless it is wrapped and marked RTL.
  */
+/**
+ * Renders an answer, keeping the line breaks the teacher wrote.
+ *
+ * `whitespace-pre-wrap` is load-bearing, not cosmetic. Blank lines separate
+ * paragraphs here, but SINGLE newlines are this author's punctuation — her
+ * emphasis comes from breaking a thought across short lines:
+ *
+ *     You've been davening.
+ *     Maybe for weeks.
+ *     Maybe for months.
+ *
+ * HTML collapses those into one run-on line by default. When the chatbot hands
+ * back a complete stored lesson, that silently destroys the shape of the
+ * writing even though every character arrived intact.
+ */
 function Prose({ text }: { text: string }) {
   const paragraphs = text.split(/\n{2,}/).filter((p) => p.trim());
 
@@ -271,7 +286,10 @@ function Prose({ text }: { text: string }) {
             key={index}
             dir={rtl ? "rtl" : "auto"}
             lang={rtl ? "he" : undefined}
-            className={rtl ? "hebrew text-[1.1em]" : undefined}
+            className={cn(
+              "whitespace-pre-wrap",
+              rtl && "hebrew text-[1.1em]",
+            )}
           >
             {paragraph.trim()}
           </p>

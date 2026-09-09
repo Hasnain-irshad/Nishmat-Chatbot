@@ -99,6 +99,44 @@ def _lesson_not_published(number: int) -> str:
     )
 
 
+def _verbatim_answer(full: dict, spent: float) -> "ChatAnswer":
+    """
+    Hand back the stored lesson itself.
+
+    No model is involved, on purpose. Asked to reproduce 700 words exactly, a
+    model paraphrases — and nothing in the output reveals that it did. The
+    teacher asking for her own lesson back has no way to spot a sentence that
+    drifted, which makes a generated "copy" worse than useless here.
+
+    The header is the only thing added, and it sits above a blank line so the
+    lesson below it is byte-identical to what is stored.
+    """
+    number = full["lesson_number"]
+    heading = f"Lesson #{number} — {full['title']}"
+    if full.get("transliteration") and full["transliteration"] not in full["title"]:
+        heading += f" ({full['transliteration']})"
+
+    header = (
+        f"{heading}\n"
+        f"The complete lesson as stored — {full['word_count']} words, "
+        f"reproduced exactly, not summarised."
+    )
+
+    return ChatAnswer(
+        content=f"{header}\n\n{full['content_text']}",
+        citations=[
+            {
+                "lesson_id": full["lesson_id"],
+                "lesson_number": number,
+                "title": full["title"],
+                "section": None,
+            }
+        ],
+        grounded=True,
+        cost_usd=spent,
+    )
+
+
 @dataclass
 class ChatAnswer:
     content: str
@@ -165,6 +203,27 @@ async def answer(
                     grounded=False,
                     cost_usd=spent,
                 )
+            # A request for the lesson ITSELF is a retrieval, not a question.
+            # It is served from the database and never sees a model: asked to
+            # reproduce 700 words exactly, a model paraphrases, and the output
+            # gives no sign that it did.
+            #
+            # Checked against the raw question as well as the rewritten one,
+            # because the rewrite is tuned to produce a good *search query* and
+            # will happily drop the word "complete" on the way.
+            if retrieval_service.verbatim_request(
+                question
+            ) or retrieval_service.verbatim_request(search_query):
+                full = await retrieval_service.load_full_lesson(number)
+                if full:
+                    log.info(
+                        "answer_verbatim_lesson",
+                        number=number,
+                        chars=len(full["content_text"]),
+                        words=full["word_count"],
+                    )
+                    return _verbatim_answer(full, spent)
+
             scoped_to = resolved
             named_lesson = number
             log.info("answer_scoped_to_lesson", number=number, lesson_id=resolved)
@@ -218,7 +277,10 @@ async def answer(
 
     try:
         completion = await provider.complete(
-            messages, operation="chat", temperature=0.6, max_tokens=800
+            messages,
+            operation="chat",
+            temperature=0.6,
+            max_tokens=settings.chat_max_answer_tokens,
         )
         spent += completion.usage.estimated_cost
     except BudgetExceeded:

@@ -721,3 +721,89 @@ def test_the_text_query_still_drops_stopwords():
 
     query = build_text_query("What does Moshia mean?")
     assert query == "moshia"
+
+
+# ================================================== complete-lesson retrieval ==
+#
+# "Give me lesson 109 exactly as stored" is a RETRIEVAL, not a question. It was
+# being answered by the generative path, which capped the answer at 800 tokens
+# and cut lesson #109 off mid-sentence at roughly 71% of its length. 73 of the
+# 131 published lessons are longer than that cap.
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Retrieve Lesson #109 and return the COMPLETE original transcript exactly as stored.",
+        "give me the full text of lesson 63",
+        "show me lesson 11 in full",
+        "lesson 99 verbatim please",
+        "I want the entire lesson 24",
+        "print the whole transcript of shiur 56",
+        "reproduce lesson 1 word-for-word",
+        "the unedited lesson 88",
+    ],
+)
+def test_a_request_for_the_stored_lesson_is_recognised(question):
+    from app.services.retrieval_service import verbatim_request
+
+    assert verbatim_request(question) is True
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "what is lesson 109 about",
+        "summarise lesson 63",
+        "tell me the important points from lesson 112",
+        "what does Moshia mean",
+        # "complete" without asking for the lesson itself — still a question.
+        "give me a complete picture of what lesson 4 teaches",
+        "how complete is the series",
+    ],
+)
+def test_ordinary_questions_are_not_treated_as_verbatim_requests(question):
+    """
+    Both halves must be present. Treating "a complete picture of lesson 4" as a
+    dump request would replace a thoughtful answer with 700 words of raw text.
+    """
+    from app.services.retrieval_service import verbatim_request
+
+    assert verbatim_request(question) is False
+
+
+def test_verbatim_and_lesson_number_detection_compose():
+    """The two signals are independent: the request needs both to fire."""
+    from app.services.retrieval_service import lesson_reference, verbatim_request
+
+    q = "Retrieve Lesson #109 and return the COMPLETE original transcript exactly as stored."
+    assert lesson_reference(q) == 109
+    assert verbatim_request(q) is True
+
+
+def test_the_verbatim_answer_contains_the_stored_text_byte_for_byte():
+    """
+    The header may be added above it; the lesson itself must not be touched.
+    Anything that reflows, trims or re-wraps the body destroys the line breaks
+    this author uses as punctuation.
+    """
+    from app.services.chat_service import _verbatim_answer
+
+    stored = "Line one.\n\nLine two.\nStill line two's stanza.\n\n  trailing spaces  "
+    full = {
+        "lesson_id": "abc",
+        "lesson_number": 109,
+        "title": "V'HaKadosh",
+        "transliteration": "V'HaKadosh",
+        "word_count": 9,
+        "content_text": stored,
+    }
+
+    answer = _verbatim_answer(full, 0.0)
+
+    assert stored in answer.content, "the stored text was altered"
+    assert answer.content.endswith(stored), "something was appended after the lesson"
+    assert answer.grounded is True
+    assert answer.citations[0]["lesson_number"] == 109
+    # No model was involved, so nothing was spent beyond what was passed in.
+    assert answer.cost_usd == 0.0

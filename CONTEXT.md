@@ -872,6 +872,44 @@ Two details worth keeping:
   threshold against a lesson it is unambiguously about, and answering "I don't
   have anything in the lessons" about a lesson we just located is simply wrong.
 
+### 9.13 "Give me the complete lesson" returned 71% of it
+
+Asked to return lesson #109 exactly as stored, the chatbot produced its opening
+and then stopped mid-sentence. Four limits, compounding:
+
+- **`max_tokens=800`** on the chat answer. Lesson #109 is 4,081 characters,
+  about 1,020 tokens, so the answer was cut at roughly 71%. **73 of the 131
+  published lessons are longer than that cap** — this was never specific to
+  #109.
+- **The prompt asks for a paraphrase.** `ANSWER_SYSTEM` says "write
+  conversationally and fairly briefly". Even with an unlimited cap the result
+  would have been a rewrite, and nothing in the output would have shown it.
+- **Chunks cannot rebuild the original.** `chunking_service` overlaps pieces by
+  two sentences and `SKIP_KEYS` drops some sections from the index entirely.
+  Reassembling them yields duplicated sentences and missing text.
+- **The frontend collapsed the line breaks.** `Prose` split on blank lines and
+  let HTML collapse single newlines — and in this corpus single newlines are the
+  punctuation (§7). Every character could arrive intact and the writing would
+  still be wrecked.
+
+The fix treats a request for the lesson as a RETRIEVAL, not a question.
+`verbatim_request()` detects it, `load_full_lesson()` reads the published
+version straight from the database, and the answer is returned **with no model
+in the path at all**. A model asked to reproduce 700 words exactly will
+paraphrase, and the teacher asking for her own lesson back has no way to spot
+the sentence that drifted — which makes a generated "copy" worse than useless.
+
+Two details worth keeping:
+
+- The detector needs the adjective to MODIFY the object. Testing "complete" and
+  "lesson" independently looked fine and was wrong: every one of these questions
+  contains the word "lesson" because it names a lesson number, so "give me a
+  complete picture of what lesson 4 teaches" matched and would have had a
+  thoughtful answer replaced by 700 words of raw text.
+- `chat_max_answer_tokens` is now a setting rather than a literal, because a
+  hard-coded ceiling is exactly the kind of limit nobody thinks to look for when
+  output goes missing.
+
 ---
 
 ## 10. Environment

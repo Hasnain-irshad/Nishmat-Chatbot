@@ -87,6 +87,18 @@ class Settings(BaseSettings):
     chat_history_window: int = 8
     chat_summary_threshold: int = 16
 
+    # Ceiling on a generated chat answer.
+    #
+    # Was hard-coded at 800, which silently cut answers off mid-sentence: 73 of
+    # the 131 published lessons are longer than 800 tokens, so any question that
+    # warranted quoting one at length hit the wall. It is a ceiling, not a
+    # target — the prompt asks for a few short paragraphs and cost follows what
+    # is actually generated, so raising it costs nothing on a normal answer.
+    #
+    # A request for a lesson's full text does not use this at all; it is served
+    # from the database with no model in the path.
+    chat_max_answer_tokens: int = 2000
+
     # ------------------------------------------------------------------ #
 
     @field_validator("supabase_url")
