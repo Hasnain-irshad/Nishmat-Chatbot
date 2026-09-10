@@ -31,7 +31,7 @@ from app.db import supabase
 from app.llm.provider import get_provider
 from app.llm.types import BudgetExceeded, LLMError, Message
 from app.logging import get_logger
-from app.services import retrieval_service
+from app.services import retrieval_service, transcript_search
 from app.services.retrieval_service import Passage
 
 log = get_logger("services.chat")
@@ -137,6 +137,85 @@ def _verbatim_answer(full: dict, spent: float) -> "ChatAnswer":
     )
 
 
+MAX_LESSONS_LISTED = 40
+
+
+async def _survey_answer(question: str, spent: float) -> "ChatAnswer | None":
+    """
+    "Which lessons did I write about X" — answered from the COMPLETE corpus.
+
+    The chunk index cannot answer this. It returns the six passages closest to
+    the question, so a six-topic request came back citing four lessons and
+    saying the excerpts did not cover the rest — which was true of the excerpts
+    and false of the corpus. `transcript_search` reads every published lesson's
+    full text instead, so "not found" means not there.
+
+    Returns the matching lessons, not their transcripts. Fifty complete lessons
+    is most of the corpus and unreadable in a chat bubble; each one can then be
+    asked for by number and comes back verbatim.
+    """
+    from app.services import transcript_search
+
+    topics = transcript_search.topics_in(question)
+    if not topics:
+        return None
+
+    blocks: list[str] = []
+    citations: list[dict] = []
+    total_found = 0
+
+    for topic in topics:
+        matches = await transcript_search.search_topic(topic)
+        total_found += len(matches)
+
+        if not matches:
+            blocks.append(
+                f"**{topic}** — nothing in the 131 published lessons mentions this. "
+                f"Searched the complete text of every lesson, not just excerpts."
+            )
+            continue
+
+        shown = matches[:MAX_LESSONS_LISTED]
+        lines = [
+            f"**{topic}** — {len(matches)} lesson"
+            f"{'' if len(matches) == 1 else 's'}"
+            + (f" (showing the {len(shown)} with the most mentions)"
+               if len(matches) > len(shown) else "")
+            + ":"
+        ]
+        for match in shown:
+            lines.append(
+                f"  #{match.lesson_number} — {match.title}  "
+                f"({match.hits} mention{'' if match.hits == 1 else 's'}, "
+                f"{match.word_count} words)"
+            )
+            citations.append(
+                {
+                    "lesson_id": match.lesson_id,
+                    "lesson_number": match.lesson_number,
+                    "title": match.title,
+                    "section": None,
+                }
+            )
+        blocks.append("\n".join(lines))
+
+    body = "\n\n".join(blocks)
+    footer = (
+        "\n\nSearched the complete stored text of all published lessons — "
+        "titles, Hebrew and transliteration included — not retrieved excerpts.\n"
+        "For any of these, ask for it by number and you'll get the full lesson "
+        'exactly as stored, e.g. "send me the complete transcript of lesson 9".'
+    )
+
+    log.info("answer_corpus_survey", topics=len(topics), matches=total_found)
+    return ChatAnswer(
+        content=body + footer,
+        citations=citations[:60],
+        grounded=True,
+        cost_usd=spent,
+    )
+
+
 @dataclass
 class ChatAnswer:
     content: str
@@ -185,6 +264,15 @@ async def answer(
     # grounding threshold, and the learner was confidently told about a
     # different lesson entirely. Being told the wrong lesson's content is worse
     # than being told nothing, because nothing about the answer looks wrong.
+    # A survey of the corpus — "which lessons cover X" — is answered from every
+    # published lesson's COMPLETE text, before any of the chunk-based paths get
+    # a look in. Checked on the raw question: the rewrite is tuned to produce a
+    # single good search query and collapses a multi-topic request into one.
+    if not lesson_id and transcript_search.survey_request(question):
+        survey = await _survey_answer(question, spent)
+        if survey:
+            return survey
+
     scoped_to = lesson_id
     named_lesson: int | None = None
     if not scoped_to:

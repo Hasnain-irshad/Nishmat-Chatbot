@@ -439,7 +439,7 @@ export function LessonComposer({ nextNumber }: { nextNumber: number | null }) {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 8, scale: 0.96 }}
                   transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-                  className="glass glass-gold absolute bottom-[calc(100%+0.6rem)] left-0 z-20 w-60 overflow-hidden rounded-2xl p-1.5 shadow-panel"
+                  className="popover absolute bottom-[calc(100%+0.6rem)] left-0 z-50 w-60 overflow-hidden rounded-2xl p-1.5"
                 >
                   <MenuItem
                     icon={Mic}

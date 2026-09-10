@@ -807,3 +807,99 @@ def test_the_verbatim_answer_contains_the_stored_text_byte_for_byte():
     assert answer.citations[0]["lesson_number"] == 109
     # No model was involved, so nothing was spent beyond what was passed in.
     assert answer.cost_usd == 0.0
+
+
+# ============================================ corpus-wide transcript search ==
+#
+# The chunk index cannot answer "which lessons did I write about X": rag_top_k
+# is 6, a multi-topic question embeds to a blurred average, and SKIP_KEYS omits
+# sections from the index entirely. Asked the client's real six-topic question,
+# the deployed bot cited 4 lessons against a ground truth of 50+ and reported
+# that "the excerpts do not include" the rest — true of the excerpts, false of
+# the corpus.
+
+
+def test_normalisation_folds_the_spellings_that_hid_a_real_lesson():
+    """
+    Lesson #9 is titled "Podeh u’Matzil" with a TYPOGRAPHIC apostrophe. A search
+    typed with an ordinary apostrophe found nothing, and "no lesson covers that"
+    was simply false.
+    """
+    from app.services.transcript_search import _squeeze, normalise
+
+    # Apostrophe style must not matter — this is the bug that hid lesson #9.
+    assert normalise("Podeh u’Matzil") == normalise("Podeh u'Matzil")
+
+    # Spacing is reconciled by the space-free form, which `search` falls back
+    # to. Keeping the two folds separate is deliberate: matching on the spaced
+    # form first stops short terms matching across word boundaries.
+    assert _squeeze("Podeh u’Matzil") == _squeeze("podeh u matzil") == "podehumatzil"
+
+    # Syllable-hyphenated transliteration is a word boundary, not a joiner.
+    assert normalise("Meh-cheh-rev") == "meh cheh rev"
+    # Nikud folds away for matching; the stored text keeps it.
+    assert normalise("נִשְׁמַת") == normalise("נשמת")
+
+
+def test_topic_expansion_covers_hebrew_and_transliteration():
+    from app.services.transcript_search import expand
+
+    rosh = [t.lower() for t in expand("rosh hashana")]
+    assert "rosh hashanah" in rosh and "ראש השנה" in rosh
+
+    sukkot = [t.lower() for t in expand("sukkot")]
+    assert "sukkos" in sukkot and "סוכות" in sukkot
+
+    # An unknown topic is still searchable, just without synonyms.
+    assert expand("marzipan") == ["marzipan"]
+
+
+CLIENT_REQUEST = """please send me the lesson numbers and lesson transcripts for the lessons that I prepared for:
+rosh hashana
+aseret yemei teshuva
+before sukkot
+about the words podeh umatzil
+about the word podeh
+on the concept of consistency, hope"""
+
+
+def test_the_clients_real_request_is_recognised_as_a_corpus_survey():
+    from app.services.transcript_search import survey_request, topics_in
+
+    assert survey_request(CLIENT_REQUEST) is True
+
+    topics = [t.lower() for t in topics_in(CLIENT_REQUEST)]
+    for expected in ("rosh hashana", "aseret yemei teshuva", "sukkot",
+                     "podeh umatzil", "podeh", "consistency", "hope"):
+        assert expected in topics, f"{expected} was not parsed out of the request"
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "what is lesson 109 about",
+        "explain podeh umatzil to me",
+        "what does hope mean in the series",
+        "tell me about Rosh Hashana",
+    ],
+)
+def test_ordinary_questions_are_not_corpus_surveys(question):
+    """A survey replaces a thoughtful answer with a list; only ask for it."""
+    from app.services.transcript_search import survey_request
+
+    assert survey_request(question) is False
+
+
+def test_search_is_exhaustive_not_top_k():
+    """
+    `limit` caps what is displayed, never what is searched, and the true match
+    count is reported separately — so a caller can say "showing 10 of 34"
+    instead of implying there were only 10.
+    """
+    import inspect
+
+    from app.services import transcript_search
+
+    source = inspect.getsource(transcript_search.search)
+    assert "results[:limit] if limit else results" in source
+    assert "rag_top_k" not in source, "corpus search must not inherit the RAG cap"

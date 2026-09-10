@@ -57,7 +57,7 @@ export function UserMenu({ profile }: { profile: Profile }) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.97 }}
             transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-            className="glass glass-gold absolute right-0 top-[calc(100%+0.6rem)] w-60 overflow-hidden rounded-2xl shadow-panel"
+            className="popover absolute right-0 top-[calc(100%+0.6rem)] z-50 w-60 overflow-hidden rounded-2xl"
           >
             <div className="border-b border-white/[0.07] px-4 py-3.5">
               <p className="truncate text-sm font-medium text-ink-50">{name}</p>

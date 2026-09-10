@@ -169,6 +169,41 @@
       0 20px 60px -30px rgb(237 201 106 / 0.35);
   }
 
+  /*
+   * A floating menu or popover.
+   *
+   * Deliberately OPAQUE, unlike .glass. A menu is not decoration — you have to
+   * be able to read it — and .glass is at most 7% opaque, relying entirely on
+   * backdrop-filter to hide whatever sits behind it.
+   *
+   * That dependency breaks exactly where menus live. Nested backdrop-filters do
+   * not compose: the app header and the sidebar both carry backdrop-blur, so a
+   * .glass panel opened inside one has its own blur dropped, leaving a nearly
+   * transparent card. The page content behind it then reads straight through —
+   * which is why "Sign out" appeared merged with the button underneath it, on
+   * every page rather than one.
+   *
+   * A solid background costs nothing and cannot fail.
+   */
+  .popover {
+    background-color: color-mix(
+      in srgb,
+      var(--color-night-900) 97%,
+      white
+    );
+    border: 1px solid rgb(237 201 106 / 0.22);
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.06),
+      0 24px 70px -28px rgb(0 0 0 / 0.85);
+  }
+
+  /* Older engines that do not support color-mix still get a solid panel. */
+  @supports not (background-color: color-mix(in srgb, red 50%, white)) {
+    .popover {
+      background-color: var(--color-night-900);
+    }
+  }
+
   /* Gold gradient text — the display treatment. */
   .text-gilded {
     background: linear-gradient(

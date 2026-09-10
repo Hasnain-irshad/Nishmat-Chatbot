@@ -186,6 +186,87 @@ class LessonCreate(BaseModel):
     """What the lesson should teach, when the admin has said so up front."""
 
 
+class TranscriptMatchOut(BaseModel):
+    lesson_id: str
+    lesson_number: int | None
+    title: str
+    word_count: int
+    hits: int
+    matched_terms: list[str]
+    evidence: str
+    content_text: str | None = None
+    """The complete stored lesson, only when `include_text` was asked for."""
+
+
+class TranscriptSearchOut(BaseModel):
+    terms: list[str]
+    lessons_searched: int
+    matches: int
+    results: list[TranscriptMatchOut]
+
+
+# ------------------------------------------------------------------ search
+
+
+@router.get("/search-transcripts", response_model=TranscriptSearchOut)
+async def search_transcripts(
+    user: AdminDep,
+    q: str = Query(min_length=2, max_length=300, description="Topic or phrase"),
+    include_text: bool = Query(
+        default=False, description="Return each lesson's complete stored text"
+    ),
+    limit: int = Query(default=100, ge=1, le=200),
+) -> TranscriptSearchOut:
+    """
+    Search the COMPLETE text of every published lesson.
+
+    Distinct from the chatbot's retrieval, which ranks chunks by similarity and
+    returns the best handful. This matches against whole stored transcripts and
+    returns EVERY lesson that qualifies — the right shape of answer for "which
+    lessons did I write about Sukkot", where a top-six list is simply wrong.
+
+    Known topics ("rosh hashana", "podeh umatzil") expand to their spelling
+    variants in Hebrew and transliteration; anything else is searched literally.
+    Matching folds apostrophes, hyphens and nikud, so a lesson titled
+    "Podeh u’Matzil" is found by someone typing an ordinary apostrophe.
+    """
+    from app.services import transcript_search
+
+    terms = transcript_search.expand(q)
+    results = await transcript_search.search(terms)
+    corpus = await transcript_search.load_corpus()
+
+    shown = results[:limit]
+    out: list[TranscriptMatchOut] = []
+    for match in shown:
+        text = None
+        if include_text:
+            full = await transcript_search.get_transcript(match.lesson_number)
+            text = (full or {}).get("content_text")
+        out.append(
+            TranscriptMatchOut(
+                lesson_id=match.lesson_id,
+                lesson_number=match.lesson_number,
+                title=match.title,
+                word_count=match.word_count,
+                hits=match.hits,
+                matched_terms=match.matched_terms,
+                evidence=match.evidence,
+                content_text=text,
+            )
+        )
+
+    log.info(
+        "transcripts_searched", q=q, terms=len(terms), matches=len(results), by=user.id
+    )
+    return TranscriptSearchOut(
+        terms=terms,
+        lessons_searched=len(corpus),
+        matches=len(results),
+        results=out,
+    )
+
+
 # --------------------------------------------------------------------- list
 
 
