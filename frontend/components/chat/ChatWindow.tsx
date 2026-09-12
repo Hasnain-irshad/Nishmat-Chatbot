@@ -7,7 +7,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import { AlertTriangle, ArrowUp, BookOpen, Loader2, Sparkles } from "lucide-react";
 
 import { api, ApiError, type ChatMessage, type Citation } from "@/lib/api";
-import { cn, hasHebrew } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { Markdown } from "@/components/chat/Markdown";
 
 const SUGGESTIONS = [
   "What does the word Moshia mean?",
@@ -243,7 +244,7 @@ function Bubble({ message }: { message: ChatMessage }) {
               : "glass text-ink-100",
           )}
         >
-          <Prose text={message.content} />
+          <Markdown text={message.content} />
         </div>
 
         {!isUser && message.citations.length > 0 && (
@@ -259,45 +260,6 @@ function Bubble({ message }: { message: ChatMessage }) {
  * A bare Hebrew word inside an English sentence drags the surrounding
  * punctuation to the wrong side unless it is wrapped and marked RTL.
  */
-/**
- * Renders an answer, keeping the line breaks the teacher wrote.
- *
- * `whitespace-pre-wrap` is load-bearing, not cosmetic. Blank lines separate
- * paragraphs here, but SINGLE newlines are this author's punctuation — her
- * emphasis comes from breaking a thought across short lines:
- *
- *     You've been davening.
- *     Maybe for weeks.
- *     Maybe for months.
- *
- * HTML collapses those into one run-on line by default. When the chatbot hands
- * back a complete stored lesson, that silently destroys the shape of the
- * writing even though every character arrived intact.
- */
-function Prose({ text }: { text: string }) {
-  const paragraphs = text.split(/\n{2,}/).filter((p) => p.trim());
-
-  return (
-    <div className="space-y-2.5 text-[0.95rem] leading-[1.7]">
-      {paragraphs.map((paragraph, index) => {
-        const rtl = hasHebrew(paragraph) && !/[A-Za-z]/.test(paragraph);
-        return (
-          <p
-            key={index}
-            dir={rtl ? "rtl" : "auto"}
-            lang={rtl ? "he" : undefined}
-            className={cn(
-              "whitespace-pre-wrap",
-              rtl && "hebrew text-[1.1em]",
-            )}
-          >
-            {paragraph.trim()}
-          </p>
-        );
-      })}
-    </div>
-  );
-}
 
 function Citations({ citations }: { citations: Citation[] }) {
   return (

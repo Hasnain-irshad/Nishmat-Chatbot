@@ -61,7 +61,26 @@ own published words, and they are your only source.
 
 Write conversationally and fairly briefly — a few short paragraphs. You are
 answering a question, not writing a lesson. Do not open with "Great question"
-or any similar filler."""
+or any similar filler.
+
+HOW TO LAY THE ANSWER OUT
+
+The reader sees rendered formatting, so use it — but lightly. A short answer
+needs no structure at all; reach for it when the answer genuinely has parts.
+
+- **Bold** a lesson's number and title the first time you name it, like
+  **Lesson #109 — V'HaKadosh**. It is the thing the reader scans for.
+- Use "## " headings only when the answer covers several distinct topics, and
+  put the topic itself in the heading.
+- Use "- " for lists. Never number a list — write "- " even for a sequence.
+- Use "---" on its own line only to separate major topics, never between every
+  paragraph.
+- Keep Hebrew on its own line where it stands alone, so it reads right-to-left
+  cleanly.
+
+Two habits to avoid, because they read as padding: restating the question back
+before answering it, and closing with an offer to help further unless you are
+genuinely naming something specific you can do next."""
 
 REWRITE_SYSTEM = """Rewrite the user's latest message as a standalone search query.
 
@@ -116,10 +135,13 @@ def _verbatim_answer(full: dict, spent: float) -> "ChatAnswer":
     if full.get("transliteration") and full["transliteration"] not in full["title"]:
         heading += f" ({full['transliteration']})"
 
+    # Markdown in the header only. Everything below the blank line is the stored
+    # lesson, untouched — the renderer treats single newlines as significant, so
+    # her line breaks survive, and no markdown is introduced into her prose.
     header = (
-        f"{heading}\n"
-        f"The complete lesson as stored — {full['word_count']} words, "
-        f"reproduced exactly, not summarised."
+        f"## {heading}\n\n"
+        f"*The complete lesson as stored — {full['word_count']} words, "
+        f"reproduced exactly, not summarised.*\n\n---"
     )
 
     return ChatAnswer(
@@ -138,6 +160,21 @@ def _verbatim_answer(full: dict, spent: float) -> "ChatAnswer":
 
 
 MAX_LESSONS_LISTED = 40
+
+
+def _title_case(topic: str) -> str:
+    """
+    Present a topic as a heading without mangling it.
+
+    `str.title()` is wrong here — it would render "Podeh u'Matzil" as
+    "Podeh U'Matzil" and "aseret yemei teshuva" loses nothing by staying as the
+    admin typed it. Only a fully lower-case topic is capitalised, and only at
+    the front.
+    """
+    topic = topic.strip()
+    if not topic:
+        return topic
+    return topic[0].upper() + topic[1:] if topic.islower() else topic
 
 
 async def _survey_answer(question: str, spent: float) -> "ChatAnswer | None":
@@ -170,24 +207,24 @@ async def _survey_answer(question: str, spent: float) -> "ChatAnswer | None":
 
         if not matches:
             blocks.append(
-                f"**{topic}** — nothing in the 131 published lessons mentions this. "
-                f"Searched the complete text of every lesson, not just excerpts."
+                f"## {_title_case(topic)}\n\n"
+                f"No lesson mentions this. Searched the complete text of all "
+                f"{len(await transcript_search.load_corpus())} published "
+                f"lessons, not retrieved excerpts."
             )
             continue
 
         shown = matches[:MAX_LESSONS_LISTED]
-        lines = [
-            f"**{topic}** — {len(matches)} lesson"
-            f"{'' if len(matches) == 1 else 's'}"
-            + (f" (showing the {len(shown)} with the most mentions)"
-               if len(matches) > len(shown) else "")
-            + ":"
-        ]
+        count = f"{len(matches)} lesson{'' if len(matches) == 1 else 's'}"
+        if len(matches) > len(shown):
+            count += f", showing the {len(shown)} with the most mentions"
+
+        lines = [f"## {_title_case(topic)}\n", f"*{count}*\n"]
         for match in shown:
             lines.append(
-                f"  #{match.lesson_number} — {match.title}  "
-                f"({match.hits} mention{'' if match.hits == 1 else 's'}, "
-                f"{match.word_count} words)"
+                f"- **#{match.lesson_number} — {match.title}**  \n"
+                f"  {match.hits} mention{'' if match.hits == 1 else 's'} · "
+                f"{match.word_count} words"
             )
             citations.append(
                 {
@@ -199,12 +236,13 @@ async def _survey_answer(question: str, spent: float) -> "ChatAnswer | None":
             )
         blocks.append("\n".join(lines))
 
-    body = "\n\n".join(blocks)
+    body = "\n\n---\n\n".join(blocks)
     footer = (
-        "\n\nSearched the complete stored text of all published lessons — "
-        "titles, Hebrew and transliteration included — not retrieved excerpts.\n"
-        "For any of these, ask for it by number and you'll get the full lesson "
-        'exactly as stored, e.g. "send me the complete transcript of lesson 9".'
+        "\n\n---\n\n"
+        "*Searched the complete stored text of every published lesson — titles, "
+        "Hebrew and transliteration included — not retrieved excerpts.*\n\n"
+        "Ask for any of these by number to get the full lesson exactly as "
+        'stored, e.g. **"send me the complete transcript of lesson 9"**.'
     )
 
     log.info("answer_corpus_survey", topics=len(topics), matches=total_found)
